@@ -16,7 +16,7 @@ public class User {
     private Integer id;
 
     @FieldName("username")
-    private String userName;
+    public String userName;
 
     @FieldName("password")
     private String passWord;

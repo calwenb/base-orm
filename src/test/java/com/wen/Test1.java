@@ -57,7 +57,7 @@ public class Test1 {
         System.out.println("==================\n");
 
         WhereWrapper whereWrapper = new WhereWrapper();
-        whereWrapper.add("username", "文");
+        whereWrapper.add("username", "文0");
         whereWrapper.or("username", "long");
         user = UserDao.selectTarget(conn, User.class, whereWrapper);
         System.out.println(user);
@@ -68,13 +68,14 @@ public class Test1 {
         WhereWrapper whereWrapper = new WhereWrapper();
         whereWrapper.add("username", "wen");
         SetWrapper setWrapper = new SetWrapper();
-        setWrapper.add("password", "666");
+        setWrapper.add("password", "6661");
         System.out.println(UserDao.updateTarget(conn, User.class, setWrapper, whereWrapper));
     }
 
     @Test
     public void t6() throws Exception {
-
+        User user = new User(115, "文" + 0, "111");
+        System.out.println(UserDao.replaceTarget(conn, user));
     }
 
 

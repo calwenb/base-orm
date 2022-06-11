@@ -9,59 +9,6 @@ import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
 
-public class WhereWrapper {
-    //WhereNode的内部类
-    @Data
-    @NoArgsConstructor
-    @AllArgsConstructor
-    public static class Node {
-        private String operating;
-        private String field;
-        private Object value;
-    }
+public class WhereWrapper extends AbstractWrapper implements Wrapper {
 
-    private final ArrayList<Node> whereList;
-
-    public WhereWrapper() {
-        whereList = new ArrayList<>();
-    }
-
-
-    public void add(String field, Object value) {
-        Node node = new Node("HEAD", field, value);
-        whereList.add(node);
-    }
-
-    public void and(String field, Object value) {
-        Node node = new Node("AND", field, value);
-        whereList.add(node);
-    }
-
-    public void or(String field, Object value) {
-        Node node = new Node("OR", field, value);
-        whereList.add(node);
-    }
-
-    public ArrayList<Node> getWhereList() {
-        return whereList;
-    }
-
-    public LinkedHashMap<String, List<Object>> getResult() {
-        LinkedHashMap<String, List<Object>> map = new LinkedHashMap<>();
-        ArrayList<Object> setList = new ArrayList<>();
-        StringBuffer whereSQL = new StringBuffer();
-        for (Node node : whereList) {
-            String operating = node.getOperating();
-            String field = node.getField();
-            Object value = node.getValue();
-            if (operating.equals("HEAD")) {
-                whereSQL.append(field).append("= ? ");
-            } else {
-                whereSQL.append(operating).append(" ").append(field).append("= ? ");
-            }
-            setList.add(value);
-        }
-        map.put(String.valueOf(whereSQL), setList);
-        return map;
-    }
 }

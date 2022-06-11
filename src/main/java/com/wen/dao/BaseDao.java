@@ -2,6 +2,7 @@ package com.wen.dao;
 
 import com.wen.annotation.FieldName;
 import com.wen.annotation.TableName;
+import com.wen.util.CastUtil;
 import com.wen.wrapper.SetWrapper;
 import com.wen.wrapper.WhereWrapper;
 
@@ -14,6 +15,9 @@ import java.sql.ResultSet;
 import java.sql.SQLException;
 import java.util.*;
 
+import static com.wen.util.CastUtil.castList;
+
+
 public class BaseDao {
     /**
      * <T> 规定泛型化
@@ -23,16 +27,8 @@ public class BaseDao {
 
         //反射获取目标信息
         Field[] fields = targetClass.getDeclaredFields();
-        TableName tableNameAnno = targetClass.getDeclaredAnnotation(TableName.class);
-        String className = targetClass.getSimpleName();
-
         //确定表名
-        String tableName;
-        if (tableNameAnno != null) {
-            tableName = tableNameAnno.value();
-        } else {
-            tableName = className;
-        }
+        String tableName = defineTableName(targetClass);
 
         //sql拼接
         StringBuffer sql = new StringBuffer();
@@ -43,14 +39,13 @@ public class BaseDao {
         //有Wrapper时
         if (whereWrapper.length != 0) {
             //条件查询
-            Map<String, List<Object>> whereRS = whereWrapper[0].getResult();
-            Map.Entry<String, List<Object>> head = whereRS.entrySet().iterator().next();
-            String whereSQL = head.getKey();
+            HashMap<String, Object> wrapperResult = whereWrapper[0].getResult();
+            String whereSQL = String.valueOf(wrapperResult.get("sql"));
+            setFields = CastUtil.castList(wrapperResult.get("setSQL"), Object.class);
             if (!whereSQL.equals("")) {
                 sql.append(" WHERE ");
                 sql.append(whereSQL);
             }
-            setFields = head.getValue();
         }
         //执行查询
         PreparedStatement pst = conn.prepareStatement(String.valueOf(sql));
@@ -97,16 +92,8 @@ public class BaseDao {
         T target = null;
         //反射获取目标信息
         Field[] fields = targetClass.getDeclaredFields();
-        TableName tableNameAnno = targetClass.getDeclaredAnnotation(TableName.class);
-        String className = targetClass.getSimpleName();
-
         //确定表名
-        String tableName;
-        if (tableNameAnno != null) {
-            tableName = tableNameAnno.value();
-        } else {
-            tableName = className;
-        }
+        String tableName = defineTableName(targetClass);
 
         //sql拼接
         StringBuffer sql = new StringBuffer();
@@ -115,15 +102,14 @@ public class BaseDao {
         List<Object> setFields = null;
         //有Wrapper时
         if (whereWrapper.length != 0) {
-            //条件查询
-            Map<String, List<Object>> whereRS = whereWrapper[0].getResult();
-            Map.Entry<String, List<Object>> head = whereRS.entrySet().iterator().next();
-            String whereSQL = head.getKey();
+            //条件查询，解析where sql
+            HashMap<String, Object> wrapperResult = whereWrapper[0].getResult();
+            String whereSQL = String.valueOf(wrapperResult.get("sql"));
+            setFields = CastUtil.castList(wrapperResult.get("setSQL"), Object.class);
             if (!whereSQL.equals("")) {
                 sql.append(" WHERE ");
                 sql.append(whereSQL);
             }
-            setFields = head.getValue();
         }
         //执行查询
         PreparedStatement pst = conn.prepareStatement(String.valueOf(sql));
@@ -169,16 +155,9 @@ public class BaseDao {
 
         //反射获取目标信息
         Field[] fields = targetClass.getDeclaredFields();
-        TableName tableNameAnno = targetClass.getDeclaredAnnotation(TableName.class);
-        String className = targetClass.getSimpleName();
 
         //确定表名
-        String tableName;
-        if (tableNameAnno != null) {
-            tableName = tableNameAnno.value();
-        } else {
-            tableName = className;
-        }
+        String tableName = defineTableName(targetClass);
 
         StringBuffer sql = new StringBuffer();
         sql.append("INSERT INTO ").append(tableName);
@@ -225,6 +204,40 @@ public class BaseDao {
         return pst.executeUpdate();
     }
 
+    public static <T> int replaceTarget(Connection conn, T target) throws SQLException, IllegalAccessException {
+        Class<?> targetClass = target.getClass();
+
+        //反射获取目标信息
+        Field[] fields = targetClass.getDeclaredFields();
+
+        //确定表名
+        String tableName = defineTableName(targetClass);
+
+        StringBuffer sql = new StringBuffer();
+        sql.append("REPLACE INTO ").append(tableName);
+        sql.append(" VALUES( ");
+        //插入值
+        for (int i = 0; i < fields.length; i++) {
+            if (i == fields.length - 1) {
+                sql.append(" ? ");
+                break;
+            }
+            sql.append(" ?, ");
+        }
+
+        sql.append(" ) ");
+
+        PreparedStatement pst = conn.prepareStatement(String.valueOf(sql));
+
+        for (int i = 0; i < fields.length; i++) {
+            fields[i].setAccessible(true);
+            if (fields[i].getType().equals(List.class) || fields[i].getType().equals(Map.class)) continue;
+            pst.setObject(i + 1, fields[i].get(target));
+        }
+        System.out.println(pst);
+        return pst.executeUpdate();
+    }
+
     public static <T> int deleteTarget(Connection conn, Class<T> targetClass, WhereWrapper whereWrapper) throws SQLException {
         //删除必须指定条件，否则会全表删除
         if (whereWrapper == null) {
@@ -233,27 +246,16 @@ public class BaseDao {
         }
 
         //条件查询，解析where sql
-        Map<String, List<Object>> whereRS = whereWrapper.getResult();
-        Map.Entry<String, List<Object>> head = whereRS.entrySet().iterator().next();
-        String whereSQL = head.getKey();
+        HashMap<String, Object> wrapperResult = whereWrapper.getResult();
+        String whereSQL = String.valueOf(wrapperResult.get("sql"));
+        List<Object> setFields = CastUtil.castList(wrapperResult.get("setSQL"), Object.class);
         if (whereSQL.equals("")) {
             System.out.println("删除必须指定条件，否则会全表删除!!!");
             return 0;
         }
 
-        List<Object> setFields = head.getValue();
 
-        //反射获取目标信息
-        TableName tableNameAnno = targetClass.getDeclaredAnnotation(TableName.class);
-        String className = targetClass.getSimpleName();
-
-        //确定表名
-        String tableName;
-        if (tableNameAnno != null) {
-            tableName = tableNameAnno.value();
-        } else {
-            tableName = className;
-        }
+        String tableName = defineTableName(targetClass);
 
         StringBuffer sql = new StringBuffer();
         sql.append("DELETE FROM ").append(tableName);
@@ -262,7 +264,7 @@ public class BaseDao {
         //执行查询
         PreparedStatement pst = conn.prepareStatement(String.valueOf(sql));
 
-        // ? 设值
+        // 占位符设值
         for (int i = 0; setFields != null && i < setFields.size(); i++) {
             pst.setObject(i + 1, setFields.get(i));
         }
@@ -277,19 +279,43 @@ public class BaseDao {
             return 0;
         }
         //条件查询，解析where sql
-        Map<String, List<Object>> whereRS = whereWrapper.getResult();
-        Map.Entry<String, List<Object>> whereHead = whereRS.entrySet().iterator().next();
-        String whereSQL = whereHead.getKey();
+        HashMap<String, Object> wrapperResult = whereWrapper.getResult();
+        String whereSQL = String.valueOf(wrapperResult.get("sql"));
+        List<Object> setWhereSQL = CastUtil.castList(wrapperResult.get("setSQL"), Object.class);
 
         //条件查询，解析set sql
-        Map<String, List<Object>> setRS = setWrapper.getResult();
-        Map.Entry<String, List<Object>> setHead = setRS.entrySet().iterator().next();
-        String setSQL = setHead.getKey();
+        wrapperResult = setWrapper.getResult();
+        String setSQL = String.valueOf(wrapperResult.get("sql"));
+        List<Object> setSetSQL = CastUtil.castList(wrapperResult.get("setSQL"), Object.class);
+
         if (setSQL.equals("") || whereSQL.equals("")) {
             System.out.println("更新必须指定set,where");
             return 0;
         }
+        //确定表名
+        String tableName = defineTableName(targetClass);
 
+        //拼接sql
+        StringBuffer sql = new StringBuffer();
+        sql.append("UPDATE ").append(tableName);
+        sql.append(" SET ").append(setSQL);
+        sql.append(" WHERE ").append(whereSQL);
+
+        //执行查询
+        PreparedStatement pst = conn.prepareStatement(String.valueOf(sql));
+
+        // 占位符设值
+        List<Object> setFields = new ArrayList<>();
+        setFields.addAll(setSetSQL);
+        setFields.addAll(setWhereSQL);
+        for (int i = 0; i < setFields.size(); i++) {
+            pst.setObject(i + 1, setFields.get(i));
+        }
+        System.out.println(pst);
+        return pst.executeUpdate();
+    }
+
+    private static <T> String defineTableName(Class<T> targetClass) {
         //反射获取目标信息
         TableName tableNameAnno = targetClass.getDeclaredAnnotation(TableName.class);
         String className = targetClass.getSimpleName();
@@ -301,25 +327,8 @@ public class BaseDao {
         } else {
             tableName = className;
         }
-
-        //拼接sql
-        StringBuffer sql = new StringBuffer();
-        sql.append("UPDATE ").append(tableName);
-        sql.append(" SET ").append(setSQL);
-        sql.append(" WHERE ").append(whereSQL);
-
-        //执行查询
-        PreparedStatement pst = conn.prepareStatement(String.valueOf(sql));
-
-        // ?设值
-        List<Object> setFields = new ArrayList<>();
-        setFields.addAll(setHead.getValue());
-        setFields.addAll(whereHead.getValue());
-        for (int i = 0; i < setFields.size(); i++) {
-            pst.setObject(i + 1, setFields.get(i));
-        }
-        System.out.println(pst);
-        return pst.executeUpdate();
+        return tableName;
     }
+
 
 }
